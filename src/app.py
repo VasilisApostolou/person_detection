@@ -49,6 +49,29 @@ class Application:
         self.last_screenshot_time = 0.0
         self.screenshot_cooldown = 10
 
+        #motion detection setup
+        self.bg_subtractors = {
+            1: cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=25, detectShadows=False),
+            2: cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=25, detectShadows=False),
+            3: cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=25, detectShadows=False),
+            4: cv2.createBackgroundSubtractorMOG2(history=500, varThreshold=25, detectShadows=False),
+        }
+
+        self.motion_threshold = 5000
+
+    def _has_motion(self,cam_id, frame):
+        #convert to grayscale to make motion math faster
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        fg_mask = self.bg_subtractors[cam_id].apply(gray)
+        #compare current to memorized background
+        _,fg_mask = cv2.threshold(fg_mask,200,255,cv2.THRESH_BINARY)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5,5))
+        fg_mask = cv2.dilate(fg_mask,kernel,iterations=2)
+        contours, _= cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in contours:
+            if cv2.contourArea(c) > 1500:
+                return True
+        return False
 
     def _request_stop(self):
         self._should_run = False
@@ -87,11 +110,14 @@ class Application:
 
                 frame_counter += 1
 
+                detections1,detections2,detections3,detections4 = [],[],[],[]
+
                 if frame_counter % 3 == 0:
-                    detections1 = self.detector.detect(frame1)
-                    detections2 = self.detector.detect(frame2)
-                    detections3 = self.detector.detect(frame3)
-                    detections4 = self.detector.detect(frame4)
+                    #only enable yolo is something is moving
+                    if self._has_motion(1,frame1): detections1 = self.detector.detect(frame1)
+                    if self._has_motion(2,frame2): detections2 = self.detector.detect(frame2)
+                    if self._has_motion(3,frame3): detections3 = self.detector.detect(frame3)
+                    if self._has_motion(4,frame4): detections4 = self.detector.detect(frame4)
                 else:
                     detections1 = []
                     detections2 = []
