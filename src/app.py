@@ -52,6 +52,8 @@ class Application:
 
         self.tray.start()
 
+        frame_counter = 0
+
         try:
             while self._should_run:
                 if self.tray.paused.is_set():
@@ -73,13 +75,24 @@ class Application:
                 frame3 = cv2.resize(frame3, (1280,720))
                 frame4 = cv2.resize(frame4, (1280,720))
 
-                detections1 = self.detector.detect(frame1)
+                frame_counter += 1
+
+                if frame_counter % 3 == 0:
+                    detections1 = self.detector.detect(frame1)
+                    detections2 = self.detector.detect(frame2)
+                    detections3 = self.detector.detect(frame3)
+                    detections4 = self.detector.detect(frame4)
+                else:
+                    detections1 = []
+                    detections2 = []
+                    detections3 = []
+                    detections4 = []
+
+
+                
                 tracked_people1 = self.tracker1.update(detections1)
-                detections2 = self.detector.detect(frame2)
                 tracked_people2 = self.tracker2.update(detections2)
-                detections3 = self.detector.detect(frame3)
                 tracked_people3 = self.tracker2.update(detections3)
-                detections4 = self.detector.detect(frame4)
                 tracked_people4 = self.tracker2.update(detections4)
 
                 total_people = len(tracked_people1) + len(tracked_people2) + len(tracked_people3) + len(tracked_people4)
