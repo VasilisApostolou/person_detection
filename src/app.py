@@ -45,7 +45,7 @@ class Application:
 
         #screenshot setup
         self.screenshot_dir = "screenshots"
-        os.makedirs(self.screenshot_dir, exist_ok=True) #create only if it doesnt exist
+        os.makedirs(self.screenshot_dir, exist_ok=True) #create only if it doesn't exist
         self.last_screenshot_time = 0.0
         self.screenshot_cooldown = 10
 
@@ -58,6 +58,9 @@ class Application:
         }
 
         self.motion_threshold = 5000
+
+        #darkness enhancement using CLAHE
+        self.clahe = cv2.createCLAHE(clipLimit=3, tileGridSize=(8,8)) #cliplimit adjusts intensity
 
     def _has_motion(self,cam_id, frame):
         #convert to grayscale to make motion math faster
@@ -72,6 +75,16 @@ class Application:
             if cv2.contourArea(c) > 1500:
                 return True
         return False
+
+    def _enhance_night_vision(self,frame):
+        #convert to LAB (lightness, color A, color B)
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l_channel, a, b = cv2.split(lab)
+        #apply clahe to lab channel
+        cl = self.clahe.apply(l_channel)
+        enhanced_lab = cv2.merge((cl,a,b))
+        return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
 
     def _request_stop(self):
         self._should_run = False
@@ -99,6 +112,7 @@ class Application:
                 frame2 = self.camera2.read()
                 frame3 = self.camera3.read()
                 frame4 = self.camera4.read()
+
                 if frame1 is None or frame2 is None or frame3 is None or frame4 is None:
                     cv2.waitKey(50)
                     continue
@@ -107,6 +121,12 @@ class Application:
                 frame2 = cv2.resize(frame2, (1280,720))
                 frame3 = cv2.resize(frame3, (1280,720))
                 frame4 = cv2.resize(frame4, (1280,720))
+
+                #boost dark areas
+                frame1 = self._enhance_night_vision(frame1)
+                frame2 = self._enhance_night_vision(frame2)
+                frame3 = self._enhance_night_vision(frame3)
+                frame4 = self._enhance_night_vision(frame4)
 
                 frame_counter += 1
 
