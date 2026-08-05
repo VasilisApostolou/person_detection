@@ -10,23 +10,29 @@ class Config:
     nvr_port: int = int(os.getenv("NVR_PORT", "554"))
     nvr_user: str = os.getenv("NVR_USER", "admin")
     nvr_password: str = os.getenv("NVR_PASSWORD", "")
-    nvr_channel: int = int(os.getenv("NVR_CHANNEL", "1"))
-    nvr_stream_type: str = os.getenv("NVR_STREAM_TYPE", "sub")
 
+    #camera channels
+    nvr_channel_1: int = int(os.getenv("NVR_CHANNEL_1", "1"))
+    nvr_channel_2: int = int(os.getenv("NVR_CHANNEL_2", "2"))
+    nvr_channel_3: int = int(os.getenv("NVR_CHANNEL_3", "3"))
+    nvr_channel_4: int = int(os.getenv("NVR_CHANNEL_4", "4"))
+
+
+    nvr_stream_type: str = os.getenv("NVR_STREAM_TYPE", "sub")
     model_path: str = os.getenv("MODEL_PATH", "yolov8n.pt")
     confidence_threshold: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
     person_class_id: int = 0
 
+    #notifier settings
     ntfy_topic: str = os.getenv("NTFY_TOPIC", "")
     ntfy_server: str = os.getenv("NTFY_SERVER", "https://ntfy.sh")
     notification_cooldown_seconds: int = int(os.getenv("NOTIFICATION_COOLDOWN_SECONDS", "60"))
 
-    @property
-    def rtsp_url(self) -> str:
+    def get_rtsp_url(self, channel: int) -> str:
         return (
             f"rtsp://{self.nvr_user}:{self.nvr_password}@"
             f"{self.nvr_ip}:{self.nvr_port}/"
-            f"chID={self.nvr_channel}&streamType={self.nvr_stream_type}"
+            f"chID={channel}&streamType={self.nvr_stream_type}"
         )
 
 config = Config()
