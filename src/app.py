@@ -1,5 +1,8 @@
 import logging
 import cv2
+import os
+import time
+from datetime import datetime
 
 from src.config import Config
 from src.camera import RTSPStream
@@ -39,6 +42,13 @@ class Application:
         )
         self.tray = SystemTray(on_quit=self._request_stop)
         self._should_run = True
+
+        #screenshot setup
+        self.screenshot_dir = "screenshots"
+        os.makedirs(self.screenshot_dir, exist_ok=True) #create only if it doesnt exist
+        self.last_screenshot_time = 0.0
+        self.screenshot_cooldown = 10
+
 
     def _request_stop(self):
         self._should_run = False
@@ -87,36 +97,49 @@ class Application:
                     detections2 = []
                     detections3 = []
                     detections4 = []
-
-
-                
+      
                 tracked_people1 = self.tracker1.update(detections1)
                 tracked_people2 = self.tracker2.update(detections2)
-                tracked_people3 = self.tracker2.update(detections3)
-                tracked_people4 = self.tracker2.update(detections4)
+                tracked_people3 = self.tracker3.update(detections3)
+                tracked_people4 = self.tracker4.update(detections4)
 
-                total_people = len(tracked_people1) + len(tracked_people2) + len(tracked_people3) + len(tracked_people4)
-
-                if total_people > 0:
-                    self.notifier.notify_person_detected(total_people)
 
                 if show_window:
-                    self._draw(frame1, tracked_people1)
-                    self._draw(frame2, tracked_people2)
-                    self._draw(frame3, tracked_people3)
-                    self._draw(frame4, tracked_people4)
+                    current_time = time.time()
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    can_take_screenshot = (current_time - self.last_screenshot_time > self.screenshot_cooldown)
+                    saved_any = False
+                    camera_data = [
+                        (1, frame1, tracked_people1),
+                        (2, frame2, tracked_people2),
+                        (3, frame3, tracked_people3),
+                        (4, frame4, tracked_people4)]
 
-                    cv2.imshow("Camera 1", frame1)
-                    cv2.moveWindow("Camera 1", 0, 0)
+                    for cam_id, frame,tracked_people in camera_data:
+                        #draw boxes
+                        self._draw(frame,tracked_people)
 
-                    cv2.imshow("Camera 2", frame2)
-                    cv2.moveWindow("Camera 2", 1280,0)
+                        #handle screenshots
+                        if can_take_screenshot and len(tracked_people) > 0:
+                            filename = os.path.join(self.screenshot_dir, f"cam{cam_id}_{timestamp}.jpg")
+                            cv2.imwrite(filename,frame)
+                            logger.info(f"Saved: {filename}")
+                            saved_any = True
 
-                    cv2.imshow("Camera 3", frame3)
-                    cv2.moveWindow("Camera 3", 0, 630)
+                            self.notifier.notify_person_detected(len(tracked_people), image_path=filename)
 
-                    cv2.imshow("Camera 4", frame4)
-                    cv2.moveWindow("Camera 4", 1280,630)
+                        #handle drawing
+                        window_name = f"Camera{cam_id}"
+                        cv2.imshow(window_name,frame)
+
+                        x_pos = ((cam_id-1)%2)*1280
+                        y_pos = ((cam_id-1)//2)*640
+
+                        cv2.moveWindow(window_name, x_pos,y_pos)
+
+                    #update screenshot cooldown
+                    if saved_any:
+                        self.last_screenshot_time = current_time
 
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
@@ -138,5 +161,7 @@ class Application:
         logger.info("Shutting down...")
         self.camera1.stop()
         self.camera2.stop()
+        self.camera3.stop()
+        self.camera4.stop()
         self.tray.stop()
         cv2.destroyAllWindows()
