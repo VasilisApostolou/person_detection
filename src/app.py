@@ -18,10 +18,10 @@ class Application:
     def __init__(self, config: Config):
         self.config = config
 
-        self.camera1 = RTSPStream(config.get_rtsp_url(config.nvr_channel_1))
-        self.camera2 = RTSPStream(config.get_rtsp_url(config.nvr_channel_2))
-        self.camera3 = RTSPStream(config.get_rtsp_url(config.nvr_channel_3))
-        self.camera4 = RTSPStream(config.get_rtsp_url(config.nvr_channel_4))
+        self.camera1 = RTSPStream(config.get_rtsp_url(config.nvr_channel_1), target_size=(640, 360), preprocess_fn=self._enhance_night_vision)
+        self.camera2 = RTSPStream(config.get_rtsp_url(config.nvr_channel_2), target_size=(640, 360), preprocess_fn=self._enhance_night_vision)
+        self.camera3 = RTSPStream(config.get_rtsp_url(config.nvr_channel_3), target_size=(640, 360), preprocess_fn=self._enhance_night_vision)
+        self.camera4 = RTSPStream(config.get_rtsp_url(config.nvr_channel_4), target_size=(640, 360), preprocess_fn=self._enhance_night_vision)
 
         self.detector = YOLODetector(
             model_path=config.model_path,
@@ -59,9 +59,6 @@ class Application:
 
         self.motion_threshold = 5000
 
-        #darkness enhancement using CLAHE
-        self.clahe = cv2.createCLAHE(clipLimit=3, tileGridSize=(8,8)) #cliplimit adjusts intensity
-
     def _has_motion(self,cam_id, frame):
         #convert to grayscale to make motion math faster
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -81,14 +78,14 @@ class Application:
         is_night = current_hour >= start_hour or current_hour < end_hour
         if not is_night:
             return frame
+        clahe = cv2.createCLAHE(clipLimit=3, tileGridSize=(8,8))
         #convert to LAB (lightness, color A, color B)
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         l_channel, a, b = cv2.split(lab)
         #apply clahe to lab channel
-        cl = self.clahe.apply(l_channel)
+        cl = clahe.apply(l_channel)
         enhanced_lab = cv2.merge((cl,a,b))
         return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
-
 
     def _request_stop(self):
         self._should_run = False
@@ -121,17 +118,6 @@ class Application:
                     cv2.waitKey(50)
                     continue
 
-                frame1 = cv2.resize(frame1, (640, 360))
-                frame2 = cv2.resize(frame2, (640, 360))
-                frame3 = cv2.resize(frame3, (640, 360))
-                frame4 = cv2.resize(frame4, (640, 360))
-
-                #boost dark areas
-                frame1 = self._enhance_night_vision(frame1)
-                frame2 = self._enhance_night_vision(frame2)
-                frame3 = self._enhance_night_vision(frame3)
-                frame4 = self._enhance_night_vision(frame4)
-
                 #optimization analytics
                 start_time = time.time()
                 frame_counter += 1
@@ -139,16 +125,23 @@ class Application:
                 detections1,detections2,detections3,detections4 = [],[],[],[]
 
                 if frame_counter % 3 == 0:
-                    #only enable yolo is something is moving
-                    if self._has_motion(1,frame1): detections1 = self.detector.detect(frame1)
-                    if self._has_motion(2,frame2): detections2 = self.detector.detect(frame2)
-                    if self._has_motion(3,frame3): detections3 = self.detector.detect(frame3)
-                    if self._has_motion(4,frame4): detections4 = self.detector.detect(frame4)
-                else:
-                    detections1 = []
-                    detections2 = []
-                    detections3 = []
-                    detections4 = []
+                    cams = {1: frame1, 2:frame2, 3:frame3, 4:frame4}
+                    active_ids = []
+                    active_frames = []
+
+                    for cam_id, frame in cams.items():
+                        if self._has_motion(cam_id, frame):
+                            active_ids.append(cam_id)
+                            active_frames.append(frame)
+
+                    if active_frames:
+                        batch_results = self.detector.detect_batch(active_frames)
+
+                        for cam_id,detections in zip(active_ids,batch_results):
+                            if cam_id == 1: detections1 = detections
+                            elif cam_id == 2: detections2 = detections
+                            elif cam_id == 3: detections3 = detections
+                            elif cam_id == 4: detections4 = detections
       
                 tracked_people1 = self.tracker1.update(detections1)
                 tracked_people2 = self.tracker2.update(detections2)

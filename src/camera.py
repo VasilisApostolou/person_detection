@@ -6,9 +6,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RTSPStream:
-    def __init__(self, url: str, reconnect_delay: float = 3.0):
+    def __init__(self, url: str, reconnect_delay: float = 3.0, target_size: tuple = None, preprocess_fn=None):
         self.url = url
         self.reconnect_delay = reconnect_delay
+        self.target_size = target_size
+        self.preprocess_fn = preprocess_fn
         self._frame = None
         self._lock = threading.Lock()
         self._running = False
@@ -18,7 +20,7 @@ class RTSPStream:
     def start(self):
         self._running = True
         self._cap = cv2.VideoCapture(self.url)
-        self._thread = threading.Thread(target=self._update_loop, daemon=True) #kill thread if program exits
+        self._thread = threading.Thread(target=self._update_loop, daemon=True)
         self._thread.start()
         return self
 
@@ -27,7 +29,7 @@ class RTSPStream:
         while self._running:
             if self._cap is None or not self._cap.isOpened():
                 logger.warning("Reconnecting ...")
-                self.cap = cv2.VideoCapture(self.url)
+                self._cap = cv2.VideoCapture(self.url)
                 time.sleep(self.reconnect_delay)
                 continue
 
@@ -35,9 +37,15 @@ class RTSPStream:
 
             if ret:
                 failures = 0
+                
+                # Apply resizing and night-vision enhancement on the background thread
+                if self.target_size:
+                    frame = cv2.resize(frame, self.target_size)
+                if self.preprocess_fn:
+                    frame = self.preprocess_fn(frame)
+                    
                 with self._lock:
                     self._frame = frame
-
             else:
                 failures += 1
                 if failures >= 10:
@@ -57,5 +65,3 @@ class RTSPStream:
             self._thread.join(timeout=2.0)
         if self._cap:
             self._cap.release()
-
-        

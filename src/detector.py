@@ -21,18 +21,22 @@ class YOLODetector:
         self.confidence_threshold = confidence_threshold
         self.person_class_id = person_class_id
 
+    def detect_batch(self, frames: list) -> list:
+        if not frames:
+            return []
+        results = self.model(frames,
+                             classes=[self.person_class_id],
+                             conf=self.confidence_threshold,
+                             verbose=False)
+        all_detections = []
+        for result in results:
+            detections = []
+            for box in result.boxes:
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                confidence = float(box.conf[0])
+                detections.append(Detection(bbox=(x1, y1, x2, y2), confidence=confidence))
+            all_detections.append(detections)      
+        return all_detections     
+
     def detect(self,frame: np.ndarray):
-        results = self.model(
-            frame,
-            classes = [self.person_class_id],
-            conf=self.confidence_threshold,
-            verbose=False,
-        )
-
-        detections = []
-        for box in results[0].boxes:
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            confidence = float(box.conf[0])
-            detections.append(Detection(bbox=(x1, y1, x2, y2), confidence=confidence))
-
-        return detections
+        return self.detect_batch([frame])[0]
