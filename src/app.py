@@ -76,18 +76,17 @@ class Application:
                 return True
         return False
 
-    def _enhance_night_vision(self,frame, brightness_threshold=75):
+    def _enhance_night_vision(self,frame, start_hour=21, end_hour=7):
+        current_hour = datetime.now().hour
+        is_night = current_hour >= start_hour or current_hour < end_hour
+        if not is_night:
+            return frame
         #convert to LAB (lightness, color A, color B)
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         l_channel, a, b = cv2.split(lab)
-        #calculate average brightness of the frame
-        mean_brightness = cv2.mean(l_channel)[0]
-        if mean_brightness >= brightness_threshold: 
-            return frame
         #apply clahe to lab channel
         cl = self.clahe.apply(l_channel)
         enhanced_lab = cv2.merge((cl,a,b))
-        cv2.putText(frame, "NIGHT MODE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
 
