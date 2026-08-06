@@ -72,17 +72,22 @@ class Application:
         fg_mask = cv2.dilate(fg_mask,kernel,iterations=2)
         contours, _= cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for c in contours:
-            if cv2.contourArea(c) > 1500:
+            if cv2.contourArea(c) > 400:
                 return True
         return False
 
-    def _enhance_night_vision(self,frame):
+    def _enhance_night_vision(self,frame, brightness_threshold=75):
         #convert to LAB (lightness, color A, color B)
         lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
         l_channel, a, b = cv2.split(lab)
+        #calculate average brightness of the frame
+        mean_brightness = cv2.mean(l_channel)[0]
+        if mean_brightness >= brightness_threshold: 
+            return frame
         #apply clahe to lab channel
         cl = self.clahe.apply(l_channel)
         enhanced_lab = cv2.merge((cl,a,b))
+        cv2.putText(frame, "NIGHT MODE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
 
@@ -117,10 +122,10 @@ class Application:
                     cv2.waitKey(50)
                     continue
 
-                frame1 = cv2.resize(frame1, (1280,720))
-                frame2 = cv2.resize(frame2, (1280,720))
-                frame3 = cv2.resize(frame3, (1280,720))
-                frame4 = cv2.resize(frame4, (1280,720))
+                frame1 = cv2.resize(frame1, (640, 360))
+                frame2 = cv2.resize(frame2, (640, 360))
+                frame3 = cv2.resize(frame3, (640, 360))
+                frame4 = cv2.resize(frame4, (640, 360))
 
                 #boost dark areas
                 frame1 = self._enhance_night_vision(frame1)
@@ -128,6 +133,8 @@ class Application:
                 frame3 = self._enhance_night_vision(frame3)
                 frame4 = self._enhance_night_vision(frame4)
 
+                #optimization analytics
+                start_time = time.time()
                 frame_counter += 1
 
                 detections1,detections2,detections3,detections4 = [],[],[],[]
@@ -178,8 +185,8 @@ class Application:
                         window_name = f"Camera{cam_id}"
                         cv2.imshow(window_name,frame)
 
-                        x_pos = ((cam_id-1)%2)*1280
-                        y_pos = ((cam_id-1)//2)*640
+                        x_pos = ((cam_id-1)%2)*640
+                        y_pos = ((cam_id-1)//2)*360
 
                         cv2.moveWindow(window_name, x_pos,y_pos)
 
@@ -189,6 +196,7 @@ class Application:
 
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
+            logger.info(f"Loop time: {time.time() - start_time:.3f}s")
         finally:
             self._shutdown()
 
