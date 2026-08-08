@@ -9,6 +9,7 @@ import numpy as np
 class Detection:
     bbox: tuple
     confidence: float
+    source: str = "yolo"
 
     @property
     def center(self):
@@ -21,12 +22,14 @@ class YOLODetector:
         self.confidence_threshold = confidence_threshold
         self.person_class_id = person_class_id
 
-    def detect_batch(self, frames: list) -> list:
+    def detect_batch(self, frames: list, conf_override: float = None) -> list:
         if not frames:
             return []
+
+        threshold = conf_override if conf_override is not None else self.confidence_threshold
         results = self.model(frames,
                              classes=[self.person_class_id],
-                             conf=self.confidence_threshold,
+                             conf=threshold,
                              verbose=False)
         all_detections = []
         for result in results:

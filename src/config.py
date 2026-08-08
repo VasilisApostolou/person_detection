@@ -36,3 +36,9 @@ class Config:
         )
 
 config = Config()
+
+"""
+git clone https://github.com/yourusername/projectname.git
+pip install -r requirements.txt
+python -m main
+"""

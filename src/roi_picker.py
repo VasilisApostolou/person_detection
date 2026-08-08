@@ -12,7 +12,7 @@ def click_event(event, x, y, flags, param):
         cv2.imshow("ROI Picker", img)
 
 
-img_path = "screenshots/cam4_20260807_011403.jpg" 
+img_path = "screenshots/cam3_20260808_025546.jpg" 
 img = cv2.imread(img_path)
 
 if img is None:

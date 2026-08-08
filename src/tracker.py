@@ -7,17 +7,18 @@ from dataclasses import dataclass
 class TrackedPerson:
     id: int
     bbox: tuple
+    source: str = "yolo"
 
 class KalmanTrack:
     #class level counter to assign unique IDs to each track
     count = 0  
 
-    def __init__(self, bbox):
+    def __init__(self, bbox, source="yolo"):
         
         #bbox: (x1, y1, x2, y2) from YOLO detector
         #Internally we work with [cx, cy, s, r,  ẋ, ẏ, ṡ]
         #[center_x, center_y, scale, aspect_ratio, velocity_x, velocity_y, velocity_scale]
-        
+        self.source = source
         self.kf = KalmanFilter(dim_x=7, dim_z=4)
 
         # State transition matrix — constant velocity model
@@ -99,7 +100,7 @@ class KalmanTrack:
         self.no_match_streak += 1  # will be reset to 0 if matched this frame
         return self._z_to_bbox()
 
-    def update(self, bbox):
+    def update(self, bbox, source="yolo"):
         #Correct the filter with a matched detection.
         self.no_match_streak = 0
         self.hits += 1
@@ -171,11 +172,13 @@ class SortTracker:
 
         #3. Update matched tracks with their detection 
         for track_idx, det_idx in matched:
-            self.tracks[track_idx].update(detections[det_idx].bbox)
+            det = detections[det_idx]
+            self.tracks[track_idx].update(det.bbox, det.source)
 
         #4. Create new tracks for unmatched detections
         for det_idx in unmatched_dets:
-            self.tracks.append(KalmanTrack(detections[det_idx].bbox))
+            det = detections[det_idx]
+            self.tracks.append(KalmanTrack(det.bbox, det.source))
 
         #5. Kill tracks that haven't been matched for too long 
         self.tracks = [t for t in self.tracks if t.no_match_streak <= self.max_age]
@@ -187,7 +190,7 @@ class SortTracker:
             # OR are very new but still alive (age check avoids showing ghosts)
             if track.hits >= self.min_hits or track.no_match_streak == 0:
                 x1, y1, x2, y2 = track.get_state()
-                result.append(TrackedPerson(id=track.id, bbox=(x1,y1,x2,y2)))
+                result.append(TrackedPerson(id=track.id, bbox=(x1,y1,x2,y2), source = track.source))
         return result
 
     def _match(self, predicted_boxes, detection_boxes):
